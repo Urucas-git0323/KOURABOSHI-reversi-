@@ -1,0 +1,1 @@
+# KOURABOSHI-reversi-
