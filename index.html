@@ -1,0 +1,986 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>甲羅干し — KOURABOSHI —</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@400;700&family=Shippori+Mincho:wght@400;700&display=swap');
+
+:root {
+  --bg: #c8e6c9;
+  --paper: #efebe9;
+  --board: #757575;
+  --board-dark: #4a4a4a;
+  --line: #2e2e2e;
+  --cell-hover: rgba(255,220,100,0.15);
+  --hint: rgba(255,180,0,0.3);
+  --sakura1: #ffe082;
+  --sakura2: #ffb300;
+  --sakura3: #7a5000;
+  --gold: #ffb300;
+  --ink: #2a1a0a;
+  --ink-dim: #5a4020;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  color: var(--ink);
+  font-family: 'Shippori Mincho', 'Noto Serif JP', serif;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: linear-gradient(180deg,
+    #87ceeb 0%,
+    #b0d8f0 20%,
+    #4a9a6a 20%,
+    #3a8a5a 35%,
+    #6b8c5a 35%,
+    #8a9a6a 50%,
+    #a09060 55%,
+    #b8a878 70%,
+    #c8b888 100%
+  );
+  background-attachment: fixed;
+}
+
+.bubble {
+  position: fixed;
+  pointer-events: none;
+  z-index: 0;
+  animation: drift linear infinite;
+}
+@keyframes drift {
+  0%   { transform: translateY(0) translateX(0) rotate(0deg);   opacity: 0; }
+  10%  { opacity: 0.8; }
+  50%  { transform: translateY(var(--dy)) translateX(var(--dx)) rotate(180deg); opacity: 0.6; }
+  90%  { opacity: 0.3; }
+  100% { transform: translateY(calc(var(--dy)*2)) translateX(calc(var(--dx)*1.5)) rotate(360deg); opacity: 0; }
+}
+
+.title-wrap {
+  text-align: center;
+  margin-bottom: 18px;
+  position: relative;
+  z-index: 1;
+}
+h1 {
+  font-family: 'Noto Serif JP', serif;
+  font-size: clamp(1.8rem, 6vw, 3rem);
+  font-weight: 700;
+  color: var(--ink);
+  letter-spacing: 0.4em;
+  text-indent: 0.4em;
+  position: relative;
+}
+h1::before, h1::after {
+  content: '☀️';
+  font-size: 0.7em;
+  vertical-align: middle;
+  margin: 0 8px;
+}
+.subtitle {
+  font-size: 0.75rem;
+  color: var(--ink-dim);
+  letter-spacing: 0.25em;
+  margin-top: 4px;
+}
+
+#mode-select {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 20px;
+  position: relative;
+  z-index: 1;
+}
+.mode-btn {
+  padding: 7px 22px;
+  border-radius: 2px;
+  border: 1px solid var(--board-dark);
+  background: var(--paper);
+  color: var(--ink-dim);
+  font-family: 'Shippori Mincho', serif;
+  font-size: 0.85rem;
+  letter-spacing: 0.1em;
+  cursor: pointer;
+  transition: all 0.2s;
+  position: relative;
+}
+.mode-btn::after {
+  content: '';
+  position: absolute;
+  inset: 3px;
+  border: 1px solid transparent;
+  transition: border-color 0.2s;
+}
+.mode-btn.active {
+  background: var(--board-dark);
+  color: #e0f4ff;
+  border-color: var(--board-dark);
+}
+.mode-btn.active::after { border-color: rgba(250,235,215,0.4); }
+.mode-btn:hover:not(.active) { background: rgba(179,229,252,0.5); border-color: var(--sakura2); color: var(--ink); }
+
+#main {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  position: relative;
+  z-index: 1;
+}
+/* パネルを横並びで盤面の上に */
+#panels {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  width: 100%;
+  max-width: 480px;
+}
+
+.panel {
+  background: rgba(220,240,255,0.55);
+  backdrop-filter: blur(8px);
+  border: 1.5px solid rgba(79,195,247,0.5);
+  border-radius: 10px;
+  padding: 6px 10px;
+  flex: 1;
+  max-width: 200px;
+  box-shadow: 0 4px 20px rgba(10,60,120,0.15), inset 0 1px 0 rgba(255,255,255,0.6);
+  position: relative;
+}
+/* 全要素を1行で横並び */
+.panel-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+.panel::before {
+  content: '';
+  position: absolute;
+  inset: 4px;
+  border: 1px solid rgba(79,195,247,0.25);
+  border-radius: 7px;
+  pointer-events: none;
+}
+.panel-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.panel-score-wrap {
+  display: flex;
+  align-items: baseline;
+  gap: 3px;
+}
+.panel-label {
+  font-size: 0.6rem;
+  color: var(--board-dark);
+  letter-spacing: 0.05em;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+.stone-icon {
+  width: 36px; height: 36px;
+  border-radius: 0;
+  flex-shrink: 0;
+}
+.stone-icon.black { background: none; box-shadow: none; }
+.stone-icon.white { background: none; box-shadow: none; }
+
+.score-num {
+  font-family: 'Noto Serif JP', serif;
+  font-size: 1.6rem;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--board-dark);
+  text-shadow: 0 1px 4px rgba(79,195,247,0.3);
+}
+.score-kanji {
+  font-size: 0.6rem;
+  color: var(--ink-dim);
+  letter-spacing: 0.05em;
+}
+.turn-indicator {
+  margin-top: 4px;
+  padding: 2px 6px;
+  font-size: 0.55rem;
+  letter-spacing: 0.02em;
+  border-radius: 999px;
+  transition: all 0.35s;
+  width: 100%;
+  text-align: center;
+  white-space: nowrap;
+  box-sizing: border-box;
+}
+.turn-indicator.active {
+  background: rgba(2,119,189,0.15);
+  color: #0277bd;
+  border: 1.5px solid rgba(79,195,247,0.7);
+  box-shadow: 0 0 10px rgba(79,195,247,0.3);
+  animation: wave-glow 2s ease-in-out infinite;
+}
+.turn-indicator.inactive {
+  background: transparent;
+  color: var(--ink-dim);
+  border: 1.5px solid transparent;
+}
+@keyframes wave-glow {
+  0%,100% { box-shadow: 0 0 8px rgba(79,195,247,0.3); }
+  50%      { box-shadow: 0 0 18px rgba(79,195,247,0.6); }
+}
+
+#board-outer {
+  background: var(--board-dark);
+  padding: 12px;
+  border-radius: 3px;
+  box-shadow: 4px 8px 24px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,240,200,0.15);
+  position: relative;
+}
+#board-outer::before {
+  content: '';
+  position: absolute;
+  inset: 5px;
+  border: 1px solid rgba(255,210,120,0.2);
+  pointer-events: none;
+  border-radius: 2px;
+}
+
+#board {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  grid-template-rows: repeat(8, 1fr);
+  background: var(--board);
+  overflow: hidden;
+  perspective: 1200px;
+  perspective-origin: 50% 50%;
+  width: clamp(260px, 85vw, 440px);
+  height: clamp(260px, 85vw, 440px);
+  background-image: repeating-linear-gradient(
+    135deg,
+    transparent 0px, transparent 20px,
+    rgba(0,0,0,0.06) 20px, rgba(0,0,0,0.06) 22px
+  ), repeating-linear-gradient(
+    45deg,
+    transparent 0px, transparent 20px,
+    rgba(255,255,255,0.04) 20px, rgba(255,255,255,0.04) 22px
+  );
+}
+
+.cell {
+  border: 0.5px solid var(--line);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  transition: background 0.15s;
+}
+.cell:hover { background: var(--cell-hover); }
+
+/* カード型表裏アニメーション */
+.stone-card {
+  width: 95%;
+  height: 80%;
+  position: relative;
+  transform-style: preserve-3d;
+  transition: transform 0.6s ease-in-out;
+  will-change: transform;
+}
+/* ひっくり返す：180度回転 */
+.stone-card.flip-to-white { transform: rotateY(180deg); }
+.stone-card.flip-to-black { transform: rotateY(0deg); }
+
+/* アニメーション付きでひっくり返る */
+@keyframes do-flip {
+  0%   { transform: rotateY(0deg); }
+  100% { transform: rotateY(180deg); }
+}
+@keyframes do-flip-back {
+  0%   { transform: rotateY(180deg); }
+  100% { transform: rotateY(0deg); }
+}
+.stone-card.flipping-to-white {
+  animation: do-flip 1.2s ease-in-out forwards;
+}
+.stone-card.flipping-to-black {
+  animation: do-flip-back 1.2s ease-in-out forwards;
+}
+
+/* 表面（黒石・甲羅） */
+.stone-face {
+  position: absolute;
+  inset: 0;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+.stone-face svg { width: 100%; height: 100%; display: block; }
+
+/* 裏面（白石・腹側）：最初から180度裏向き */
+.stone-back {
+  position: absolute;
+  inset: 0;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  transform: rotateY(180deg);
+}
+.stone-back svg { width: 100%; height: 100%; display: block; }
+
+/* 待機中アニメーション */
+/* 白石：手足が揺れる（初期角度もCSS管理） */
+/* 非アニメーション時の初期姿勢 */
+.limb-fl { transform: rotate(-25deg); transform-origin: 25px 30px; }
+.limb-fr { transform: rotate(25deg);  transform-origin: 95px 30px; }
+.limb-rl { transform: rotate(20deg);  transform-origin: 25px 70px; }
+.limb-rr { transform: rotate(-20deg); transform-origin: 95px 70px; }
+
+@keyframes limb-fl {
+  0%,100% { transform: rotate(-25deg); }
+  50%     { transform: rotate(-6deg); }
+}
+@keyframes limb-fr {
+  0%,100% { transform: rotate(25deg); }
+  50%     { transform: rotate(6deg); }
+}
+@keyframes limb-rl {
+  0%,100% { transform: rotate(20deg); }
+  50%     { transform: rotate(4deg); }
+}
+@keyframes limb-rr {
+  0%,100% { transform: rotate(-20deg); }
+  50%     { transform: rotate(-4deg); }
+}
+.stone-card.idling .limb-fl { animation: limb-fl 2.4s ease-in-out var(--idle-delay, 0s) infinite; transform-origin: 25px 30px; }
+.stone-card.idling .limb-fr { animation: limb-fr 2.8s ease-in-out calc(var(--idle-delay, 0s) + 0.3s) infinite; transform-origin: 95px 30px; }
+.stone-card.idling .limb-rl { animation: limb-rl 3.1s ease-in-out calc(var(--idle-delay, 0s) + 0.6s) infinite; transform-origin: 25px 70px; }
+.stone-card.idling .limb-rr { animation: limb-rr 2.6s ease-in-out calc(var(--idle-delay, 0s) + 0.9s) infinite; transform-origin: 95px 70px; }
+
+
+/* 黒石の頭：甲羅からひょっこり出るアニメーション */
+/* 楕円はrotate(90)で縦長、上端はcy=50-40=10付近 */
+@keyframes peek-out {
+  0%   { transform: translateY(0);   opacity: 0; }
+  15%  { transform: translateY(-12px); opacity: 1; }
+  70%  { transform: translateY(-12px); opacity: 1; }
+  100% { transform: translateY(0);   opacity: 0; }
+}
+.turtle-head {
+  transform-origin: 60px 18px;
+  opacity: 0;
+}
+.turtle-head.peeking {
+  animation: peek-out 1.8s ease-in-out forwards;
+}
+
+.hint-dot::after {
+  content: '🔄';
+  position: absolute;
+  font-size: 40%;
+  opacity: 0.6;
+  pointer-events: none;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+@keyframes pulse {
+  0%,100% { transform: scale(1); opacity: 0.5; }
+  50%      { transform: scale(1.2); opacity: 0.8; }
+}
+
+#message {
+  margin-top: 12px;
+  font-size: 0.85rem;
+  color: #1a5c80;
+  min-height: 20px;
+  text-align: center;
+  letter-spacing: 0.12em;
+}
+#message.highlight {
+  color: var(--board-dark);
+  font-weight: 700;
+  font-size: 0.95rem;
+}
+
+#reset-btn {
+  margin-top: 14px;
+  padding: 9px 28px;
+  background: var(--paper);
+  border: 1px solid var(--board-dark);
+  color: var(--ink);
+  font-family: 'Shippori Mincho', serif;
+  font-size: 0.85rem;
+  letter-spacing: 0.2em;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: block;
+  margin-left: auto;
+  margin-right: auto;
+  border-radius: 2px;
+  position: relative;
+}
+#reset-btn::after {
+  content: '';
+  position: absolute;
+  inset: 3px;
+  border: 1px solid rgba(79,195,247,0.35);
+}
+#reset-btn:hover { background: var(--sakura1); border-color: var(--sakura2); }
+</style>
+</head>
+<body>
+
+<!-- トンボ・川面の光 -->
+<script>
+  function makeDragonfly(size){
+    return `<svg width="${size}" height="${size*0.6}" viewBox="0 0 60 36" xmlns="http://www.w3.org/2000/svg">
+      <ellipse cx="30" cy="18" rx="3" ry="10" fill="#c0392b" opacity="0.85"/>
+      <ellipse cx="24" cy="14" rx="12" ry="4" fill="rgba(180,230,255,0.6)" stroke="rgba(100,160,200,0.5)" stroke-width="0.8" transform="rotate(-10,24,14)"/>
+      <ellipse cx="36" cy="14" rx="12" ry="4" fill="rgba(180,230,255,0.6)" stroke="rgba(100,160,200,0.5)" stroke-width="0.8" transform="rotate(10,36,14)"/>
+      <ellipse cx="24" cy="22" rx="11" ry="3.5" fill="rgba(180,230,255,0.5)" stroke="rgba(100,160,200,0.4)" stroke-width="0.8" transform="rotate(10,24,22)"/>
+      <ellipse cx="36" cy="22" rx="11" ry="3.5" fill="rgba(180,230,255,0.5)" stroke="rgba(100,160,200,0.4)" stroke-width="0.8" transform="rotate(-10,36,22)"/>
+      <circle cx="30" cy="9" r="3" fill="#2c3e50"/>
+    </svg>`;
+  }
+  function makeSparkle(size){
+    return `<svg width="${size*2}" height="${size*0.4}" viewBox="0 0 80 16" xmlns="http://www.w3.org/2000/svg">
+      <ellipse cx="40" cy="8" rx="36" ry="3" fill="rgba(255,240,180,0.35)" />
+      <ellipse cx="40" cy="8" rx="18" ry="1.5" fill="rgba(255,255,220,0.55)" />
+    </svg>`;
+  }
+  for(let i=0;i<14;i++){
+    const b = document.createElement('div');
+    b.className = 'bubble';
+    const isDragonfly = i < 6;
+    const size = isDragonfly ? 18+Math.random()*16 : 30+Math.random()*40;
+    b.style.left = Math.random()*90 + 'vw';
+    b.style.top  = (10+Math.random()*60) + 'vh';
+    b.style.animationDuration = (8+Math.random()*12)+'s';
+    b.style.animationDelay = (-Math.random()*14)+'s';
+    b.style.setProperty('--dx', (Math.random()*120-60)+'px');
+    b.style.setProperty('--dy', (Math.random()*40-20)+'px');
+    b.innerHTML = isDragonfly ? makeDragonfly(size) : makeSparkle(size);
+    document.body.appendChild(b);
+  }
+</script>
+
+<div class="title-wrap">
+  <h1>甲羅干し</h1>
+  <div class="subtitle">— KOURABOSHI —</div>
+</div>
+
+<div id="mode-select">
+  <button class="mode-btn active" id="btn-2p" onclick="setMode('2p')">二匹で対戦</button>
+  <button class="mode-btn" id="btn-cpu" onclick="setMode('cpu')">一匹で対戦（CPU）</button>
+</div>
+
+<div id="main">
+  <!-- パネルを盤面の上に横並び -->
+  <div id="panels">
+    <div class="panel">
+      <div class="panel-row">
+        <span class="panel-label">🐢 黒亀</span>
+        <div class="stone-icon black"></div>
+        <div class="score-num" id="score-black">2</div>
+        <div class="score-kanji">匹</div>
+      </div>
+      <div class="turn-indicator active" id="turn-black">手番</div>
+    </div>
+    <div class="panel">
+      <div class="panel-row">
+        <span class="panel-label">🐢 白亀</span>
+        <div class="stone-icon white"></div>
+        <div class="score-num" id="score-white">2</div>
+        <div class="score-kanji">匹</div>
+      </div>
+      <div class="turn-indicator inactive" id="turn-white">手番</div>
+    </div>
+  </div>
+
+  <div>
+    <div id="board-outer">
+      <div id="board"></div>
+    </div>
+    <div id="message">黒亀より始まります</div>
+    <button id="reset-btn" onclick="resetGame()">☀ 最初から干し直す ☀</button>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// 【サウンドエンジン】Web Audio API
+// ============================================================
+const AudioCtx = window.AudioContext || window.webkitAudioContext;
+let audioCtx = null;
+
+function getAudioCtx(){
+  if(!audioCtx) audioCtx = new AudioCtx();
+  return audioCtx;
+}
+
+// 基本的な音生成ユーティリティ
+function playTone(freq, type, duration, volume=0.3, startTime=0){
+  const ctx = getAudioCtx();
+  const t = ctx.currentTime + startTime;
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+  osc.type = type;
+  osc.frequency.setValueAtTime(freq, t);
+  gain.gain.setValueAtTime(volume, t);
+  gain.gain.exponentialRampToValueAtTime(0.001, t + duration);
+  osc.start(t);
+  osc.stop(t + duration);
+}
+
+// 石を置く音：木製の「コトッ」
+function soundPlace(){
+  const ctx = getAudioCtx();
+  const t = ctx.currentTime;
+  // ノイズバースト（打撃感）
+  const buf = ctx.createBuffer(1, ctx.sampleRate * 0.08, ctx.sampleRate);
+  const data = buf.getChannelData(0);
+  for(let i=0;i<data.length;i++) data[i] = (Math.random()*2-1) * Math.exp(-i/(data.length*0.2));
+  const src = ctx.createBufferSource();
+  src.buffer = buf;
+  const filter = ctx.createBiquadFilter();
+  filter.type = 'bandpass';
+  filter.frequency.value = 800;
+  filter.Q.value = 0.8;
+  const gain = ctx.createGain();
+  gain.gain.setValueAtTime(0.4, t);
+  gain.gain.exponentialRampToValueAtTime(0.001, t+0.08);
+  src.connect(filter);
+  filter.connect(gain);
+  gain.connect(ctx.destination);
+  src.start(t);
+  // 低音の「トン」
+  playTone(120, 'sine', 0.1, 0.25);
+}
+
+// ひっくり返る音：軽やかな「ひらり」（石ごとに少しずつ音程変化）
+function soundFlip(index=0){
+  const baseFreq = 600 + index * 40;
+  playTone(baseFreq, 'sine', 0.18, 0.18);
+  playTone(baseFreq * 1.5, 'sine', 0.12, 0.08, 0.06);
+}
+
+// 勝利音：和風ファンファーレ
+function soundWin(){
+  const notes = [523, 659, 784, 1047]; // C5 E5 G5 C6
+  notes.forEach((freq, i) => {
+    playTone(freq, 'sine', 0.4, 0.25, i * 0.18);
+    playTone(freq * 0.5, 'triangle', 0.4, 0.1, i * 0.18);
+  });
+  // 最後に和音
+  [523, 659, 784].forEach(freq => {
+    playTone(freq, 'sine', 0.8, 0.15, 0.8);
+  });
+}
+
+// 引き分け音
+function soundDraw(){
+  playTone(440, 'sine', 0.3, 0.2);
+  playTone(440, 'sine', 0.3, 0.15, 0.35);
+}
+
+// パス音：「ぽよん」
+function soundPass(){
+  const ctx = getAudioCtx();
+  const t = ctx.currentTime;
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(300, t);
+  osc.frequency.exponentialRampToValueAtTime(180, t + 0.25);
+  gain.gain.setValueAtTime(0.2, t);
+  gain.gain.exponentialRampToValueAtTime(0.001, t + 0.3);
+  osc.start(t);
+  osc.stop(t + 0.3);
+}
+
+// CPU着手音：少し低めの「コトン」
+function soundCPU(){
+  playTone(200, 'sine', 0.12, 0.2);
+  playTone(150, 'triangle', 0.15, 0.15, 0.05);
+}
+
+const BLACK=1,WHITE=2,EMPTY=0;
+const DIRS=[[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]];
+let board=[],currentPlayer,gameMode='2p',cpuThinking=false;
+let animTimers=[]; // アニメーションタイマー管理
+
+function initBoard(){
+  board=Array.from({length:8},()=>Array(8).fill(EMPTY));
+  board[3][3]=WHITE;board[3][4]=BLACK;board[4][3]=BLACK;board[4][4]=WHITE;
+  currentPlayer=BLACK;cpuThinking=false;
+}
+function inBounds(r,c){return r>=0&&r<8&&c>=0&&c<8;}
+function canPlace(r,c,player){
+  if(board[r][c]!==EMPTY)return false;
+  const opp=player===BLACK?WHITE:BLACK;
+  for(const[dr,dc]of DIRS){
+    let nr=r+dr,nc=c+dc,cnt=0;
+    while(inBounds(nr,nc)&&board[nr][nc]===opp){nr+=dr;nc+=dc;cnt++;}
+    if(cnt>0&&inBounds(nr,nc)&&board[nr][nc]===player)return true;
+  }
+  return false;
+}
+function validMoves(player){
+  const m=[];
+  for(let r=0;r<8;r++)for(let c=0;c<8;c++)if(canPlace(r,c,player))m.push([r,c]);
+  return m;
+}
+function placeStone(r,c,player){
+  board[r][c]=player;
+  const opp=player===BLACK?WHITE:BLACK;
+  const flipped=[];
+  for(const[dr,dc]of DIRS){
+    let nr=r+dr,nc=c+dc;const line=[];
+    while(inBounds(nr,nc)&&board[nr][nc]===opp){line.push([nr,nc]);nr+=dr;nc+=dc;}
+    if(line.length>0&&inBounds(nr,nc)&&board[nr][nc]===player)
+      for(const[fr,fc]of line){board[fr][fc]=player;flipped.push([fr,fc]);}
+  }
+  return flipped;
+}
+function countStones(){
+  let b=0,w=0;
+  for(let r=0;r<8;r++)for(let c=0;c<8;c++){if(board[r][c]===BLACK)b++;if(board[r][c]===WHITE)w++;}
+  return{black:b,white:w};
+}
+
+function renderBoard(flipped=[]){
+  const el=document.getElementById('board');
+  const moves=validMoves(currentPlayer);
+  const moveSet=new Set(moves.map(([r,c])=>`${r},${c}`));
+  const flippedSet=new Set(flipped.map(([r,c])=>`${r},${c}`));
+  el.innerHTML='';
+  for(let r=0;r<8;r++)for(let c=0;c<8;c++){
+    const cell=document.createElement('div');
+    cell.className='cell';
+    if(board[r][c]!==EMPTY){
+      const s=document.createElement('div');
+      const isBlack = board[r][c]===BLACK;
+      const isFlipped = flippedSet.has(`${r},${c}`);
+      const uid = `_${r}_${c}`;
+      // ひっくり返る石はアニメ開始前に「元の色（反転前）」で表示
+      const displayAsBlack = isFlipped ? !isBlack : isBlack;
+      s.className = 'stone-card ' + (displayAsBlack ? 'flip-to-black' : 'flip-to-white');
+      s.innerHTML = `
+        <div class="stone-face">${makeTurtleSVG(uid)}</div>
+        <div class="stone-back">${makeTurtleBellySVG(uid)}</div>
+      `;
+      if(isFlipped){
+        s.dataset.flip = isBlack ? 'to-black' : 'to-white';
+      }
+      cell.appendChild(s);
+    }else if(moveSet.has(`${r},${c}`)){
+      cell.classList.add('hint-dot');
+      cell.addEventListener('click',()=>handleClick(r,c));
+    }
+    el.appendChild(cell);
+  }
+  const{black,white}=countStones();
+  document.getElementById('score-black').textContent=black;
+  document.getElementById('score-white').textContent=white;
+  updateTurnUI();
+  setTimeout(updateIdling, 50);
+}
+
+function updateTurnUI(){
+  const isB=currentPlayer===BLACK;
+  const tb=document.getElementById('turn-black');
+  const tw=document.getElementById('turn-white');
+  if(isB){
+    tb.className='turn-indicator active';tb.textContent='岩の上で思案中';
+    tw.className='turn-indicator inactive';tw.textContent='日向ぼっこ中';
+  }else{
+    tb.className='turn-indicator inactive';tb.textContent='日向ぼっこ中';
+    tw.className='turn-indicator active';tw.textContent='岩の上で思案中';
+  }
+}
+function setMessage(text,highlight=false){
+  const el=document.getElementById('message');
+  el.textContent=text;el.className=highlight?'highlight':'';
+}
+function handleClick(r,c){
+  if(cpuThinking)return;
+  if(!canPlace(r,c,currentPlayer))return;
+  cpuThinking=true; // アニメーション中はクリックをブロック
+  const flipped=placeStone(r,c,currentPlayer);
+  soundPlace();
+  renderBoard(flipped);
+  animateFlips(flipped, ()=>{ cpuThinking=false; nextTurn(); }, r, c);
+}
+function nextTurn(){
+  currentPlayer=currentPlayer===BLACK?WHITE:BLACK;
+  if(validMoves(currentPlayer).length>0){
+    if(gameMode==='cpu'&&currentPlayer===WHITE){
+      cpuThinking=true;setMessage('白亀、美肌に潤い補給中☀');
+      renderBoard();setTimeout(cpuMove,1000+Math.random()*4000);
+    }else{
+      cpuThinking=false;
+      setMessage(currentPlayer===BLACK?'黒亀、甲羅に栄養補給中☀':'白亀、美肌に潤い補給中☀');
+      renderBoard();
+    }
+    return;
+  }
+  const opp=currentPlayer===BLACK?WHITE:BLACK;
+  if(validMoves(opp).length>0){
+    setMessage((currentPlayer===BLACK?'黒亀':'白亀')+'はこんがりしています。パス！🌊');
+    soundPass();
+    currentPlayer=opp;
+    if(gameMode==='cpu'&&currentPlayer===WHITE){
+      cpuThinking=true;renderBoard();setTimeout(cpuMove,1000+Math.random()*4000);
+    }else{cpuThinking=false;renderBoard();}
+    return;
+  }
+  endGame();
+}
+function endGame(){
+  const{black,white}=countStones();
+  let msg;
+  if(black>white){ msg=`🐢🐢🐢 黒亀の勝ち！（${black} 対 ${white}）`; soundWin(); }
+  else if(white>black){ msg=` 白亀の勝ち！🐢🐢🐢（${white} 対 ${black}）`; soundWin(); }
+  else{ msg=`🐢 引き分け 🐢（${black} 対 ${white}）`; soundDraw(); }
+  setMessage(msg,true);
+}
+
+function makeTurtleBellySVG(uid=""){
+  const color = '#E0DA8D';
+  const skin  = '#c8c84a';
+  const stroke = '#2e8b3a';
+
+  function plate(x,y,w,h,r=4){
+    return `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${r}" ry="${r}" fill="${color}" stroke="${stroke}" stroke-width="1.2" opacity="0.95"/>`;
+  }
+  const plates = [
+    plate(27,26,22,13,4), plate(71,26,22,13,4),
+    plate(25,41,24,13,4), plate(71,41,24,13,4),
+    plate(27,56,22,12,4), plate(71,56,22,12,4),
+  ];
+  const centerLine = `<line x1="60" y1="22" x2="60" y2="72" stroke="${stroke}" stroke-width="1.4" opacity="0.7"/>`;
+  const hLines = [40,54,68].map(y =>
+    `<line x1="18" y1="${y}" x2="102" y2="${y}" stroke="${stroke}" stroke-width="1" opacity="0.5"/>`
+  ).join('');
+
+  return `<svg viewBox="0 0 120 100" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <radialGradient id="bg2${uid}" cx="38%" cy="30%" r="65%">
+        <stop offset="0%" stop-color="#fff8d0"/>
+        <stop offset="40%" stop-color="#f0d880"/>
+        <stop offset="100%" stop-color="#c8a840"/>
+      </radialGradient>
+      <radialGradient id="skin2${uid}" cx="40%" cy="35%" r="60%">
+        <stop offset="0%" stop-color="#ddd84a"/>
+        <stop offset="100%" stop-color="#a0a030"/>
+      </radialGradient>
+      <clipPath id="ov2${uid}"><ellipse cx="60" cy="50" rx="40" ry="30" transform="rotate(90,60,50)"/></clipPath>
+    </defs>
+    <!-- 頭・手足・尻尾を楕円と同じ90度回転でまとめて回転 -->
+    <g>
+      <ellipse cx="60" cy="10" rx="10" ry="8" fill="url(#skin2${uid})" stroke="${stroke}" stroke-width="1.2"/>
+      <rect x="55" y="10" width="10" height="8" rx="3" fill="url(#skin2${uid})" stroke="${stroke}" stroke-width="1"/>
+      <circle cx="56" cy="8" r="1.8" fill="#1a3a0a"/>
+      <circle cx="64" cy="8" r="1.8" fill="#1a3a0a"/>
+      <circle cx="56.8" cy="7.3" r="0.6" fill="white" opacity="0.8"/>
+      <circle cx="64.8" cy="7.3" r="0.6" fill="white" opacity="0.8"/>
+      <ellipse cx="25" cy="30" rx="10" ry="6" fill="url(#skin2${uid})" stroke="${stroke}" stroke-width="1.2" class="limb-fl"/>
+      <line x1="17" y1="27" x2="15" y2="23" stroke="${stroke}" stroke-width="1"/>
+      <line x1="20" y1="25" x2="18" y2="21" stroke="${stroke}" stroke-width="1"/>
+      <line x1="23" y1="24" x2="22" y2="20" stroke="${stroke}" stroke-width="1"/>
+      <ellipse cx="95" cy="30" rx="10" ry="6" fill="url(#skin2${uid})" stroke="${stroke}" stroke-width="1.2" class="limb-fr"/>
+      <line x1="103" y1="27" x2="105" y2="23" stroke="${stroke}" stroke-width="1"/>
+      <line x1="100" y1="25" x2="102" y2="21" stroke="${stroke}" stroke-width="1"/>
+      <line x1="97"  y1="24" x2="98"  y2="20" stroke="${stroke}" stroke-width="1"/>
+      <ellipse cx="25" cy="70" rx="10" ry="6" fill="url(#skin2${uid})" stroke="${stroke}" stroke-width="1.2" class="limb-rl"/>
+      <line x1="17" y1="73" x2="15" y2="77" stroke="${stroke}" stroke-width="1"/>
+      <line x1="20" y1="75" x2="18" y2="79" stroke="${stroke}" stroke-width="1"/>
+      <line x1="23" y1="76" x2="22" y2="80" stroke="${stroke}" stroke-width="1"/>
+      <ellipse cx="95" cy="70" rx="10" ry="6" fill="url(#skin2${uid})" stroke="${stroke}" stroke-width="1.2" class="limb-rr"/>
+      <line x1="103" y1="73" x2="105" y2="77" stroke="${stroke}" stroke-width="1"/>
+      <line x1="100" y1="75" x2="102" y2="79" stroke="${stroke}" stroke-width="1"/>
+      <line x1="97"  y1="76" x2="98"  y2="80" stroke="${stroke}" stroke-width="1"/>
+      <path d="M55,88 Q50,96 53,100 Q60,104 67,100 Q70,96 65,88 Z" fill="url(#skin2${uid})" stroke="${stroke}" stroke-width="1.1"/>
+    </g>
+    <ellipse cx="60" cy="50" rx="40" ry="30" fill="url(#bg2${uid})" stroke="${stroke}" stroke-width="2.5" transform="rotate(90,60,50)"/>
+    <g clip-path="url(#ov2${uid})">
+      ${plates.join('')}
+      ${centerLine}
+      ${hLines}
+    </g>
+    <ellipse cx="46" cy="36" rx="11" ry="6" fill="white" opacity="0.2"/>
+  </svg>`;
+}
+
+function makeTurtleSVG(uid=""){
+  const cx=60, cy=50, rx=40, ry=32;
+  function hex(cx,cy,r,angle=0){
+    const pts=[];
+    for(let i=0;i<6;i++){
+      const a=(i*60+angle)*Math.PI/180;
+      pts.push(`${(cx+r*Math.cos(a)).toFixed(2)},${(cy+r*Math.sin(a)).toFixed(2)}`);
+    }
+    return pts.join(' ');
+  }
+  const center = hex(60,50,22,0);
+  const subs = [];
+  for(let i=0;i<6;i++){
+    const a=(i*60+30)*Math.PI/180;
+    const sx=60+32*Math.cos(a), sy=50+28*Math.sin(a);
+    subs.push(hex(sx,sy,11,0));
+  }
+  const subPolys = subs.map(p=>`<polygon points="${p}" fill="none" stroke="#1a5c2a" stroke-width="1.2" opacity="0.85"/>`).join('');
+  return `<svg viewBox="0 0 120 100" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <radialGradient id="tg${uid}" cx="38%" cy="32%" r="60%">
+        <stop offset="0%" stop-color="#8a9a6a"/>
+        <stop offset="50%" stop-color="#4a6a3a"/>
+        <stop offset="100%" stop-color="#2a3a1a"/>
+      </radialGradient>
+      <clipPath id="ov${uid}"><ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}" transform="rotate(90,${cx},${cy})"/></clipPath>
+    </defs>
+    <ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}" fill="url(#tg${uid})" stroke="#2a3a1a" stroke-width="2" transform="rotate(90,${cx},${cy})"/>
+    <g clip-path="url(#ov${uid})">
+      <polygon points="${center}" fill="none" stroke="#2a3a1a" stroke-width="1.5" opacity="0.9"/>
+      ${subPolys}
+    </g>
+    <ellipse cx="46" cy="34" rx="12" ry="7" fill="white" opacity="0.18"/>
+    <!-- 頭：甲羅の上からひょっこり出る（初期は非表示） -->
+    <g class="turtle-head">
+      <ellipse cx="60" cy="18" rx="8" ry="6" fill="#6a8a4a" stroke="#2a3a1a" stroke-width="1.2"/>
+      <circle cx="57" cy="16" r="1.4" fill="#1a3a0a"/>
+      <circle cx="63" cy="16" r="1.4" fill="#1a3a0a"/>
+      <circle cx="57.6" cy="15.5" r="0.5" fill="white" opacity="0.8"/>
+      <circle cx="63.6" cy="15.5" r="0.5" fill="white" opacity="0.8"/>
+    </g>
+  </svg>`;
+}
+
+// 黒石の頭ひょっこりアニメーション
+function schedulePeek(card){
+  if(!card || !card.classList.contains('idling')) return;
+  const delay = 3000 + Math.random() * 6000; // 3〜9秒後
+  setTimeout(() => {
+    if(!card.classList.contains('idling')) return;
+    const head = card.querySelector('.stone-face .turtle-head');
+    if(head){
+      head.classList.remove('peeking');
+      void head.offsetWidth; // reflow
+      head.classList.add('peeking');
+      head.addEventListener('animationend', () => {
+        head.classList.remove('peeking');
+        schedulePeek(card); // 次のひょっこりをスケジュール
+      }, { once: true });
+    } else {
+      schedulePeek(card);
+    }
+  }, delay);
+}
+
+// 待機中の手足アニメーション制御
+function updateIdling(){
+  document.querySelectorAll('#board .stone-card').forEach(card => {
+    card.classList.remove('idling');
+  });
+  // 全石にidlingを付与（ひっくり返り中は除く）
+  document.querySelectorAll('#board .stone-card:not(.flipping-to-white):not(.flipping-to-black)').forEach(card => {
+    card.style.setProperty('--idle-delay', (Math.random()*2).toFixed(2)+'s');
+    card.classList.add('idling');
+    // 黒石（甲羅）のみひょっこりスケジュール
+    if(card.classList.contains('flip-to-black')){
+      schedulePeek(card);
+    }
+  });
+}
+
+// 石を1つずつ順番にアニメーションしてからcallbackを呼ぶ
+function clearAnimTimers(){
+  animTimers.forEach(id => clearTimeout(id));
+  animTimers = [];
+}
+
+function animateFlips(flipped, callback, originR, originC){
+  clearAnimTimers(); // 既存タイマーをキャンセル
+  if(flipped.length === 0){ callback(); return; }
+  const DELAY = 300;
+  const DURATION = 1200;
+
+  const sorted = [...flipped].sort(([r1,c1],[r2,c2]) => {
+    const d1 = Math.abs(r1-originR) + Math.abs(c1-originC);
+    const d2 = Math.abs(r2-originR) + Math.abs(c2-originC);
+    return d1 - d2;
+  });
+
+  sorted.forEach(([r,c], i) => {
+    const tid = setTimeout(() => {
+      const cells = document.querySelectorAll('#board .cell');
+      const idx = r * 8 + c;
+      const card = cells[idx] ? cells[idx].querySelector('[data-flip]') : null;
+      if(card){
+        const dir = card.dataset.flip;
+        card.classList.add(dir === 'to-white' ? 'flipping-to-white' : 'flipping-to-black');
+        soundFlip(i);
+      }
+    }, i * DELAY);
+    animTimers.push(tid);
+  });
+
+  const total = (sorted.length - 1) * DELAY + DURATION + 100;
+  const finalTid = setTimeout(callback, total);
+  animTimers.push(finalTid);
+}
+
+const WEIGHT=[[100,-20,10,5,5,10,-20,100],[-20,-50,-2,-2,-2,-2,-50,-20],[10,-2,1,1,1,1,-2,10],[5,-2,1,1,1,1,-2,5],[5,-2,1,1,1,1,-2,5],[10,-2,1,1,1,1,-2,10],[-20,-50,-2,-2,-2,-2,-50,-20],[100,-20,10,5,5,10,-20,100]];
+function cpuMove(){
+  const moves=validMoves(WHITE);
+  if(moves.length===0){cpuThinking=false;nextTurn();return;}
+  let best=null,bestScore=-Infinity;
+  for(const[r,c]of moves){
+    const saved=board.map(row=>[...row]);
+    const fl=placeStone(r,c,WHITE);let score=WEIGHT[r][c]+fl.length;
+    board=saved;if(score>bestScore){bestScore=score;best=[r,c];}
+  }
+  const[br,bc]=best;
+  const flipped=placeStone(br,bc,WHITE);
+  renderBoard(flipped);
+  soundCPU();
+  // アニメーション完了後にcpuThinkingを解除してからnextTurn
+  animateFlips(flipped, ()=>{ cpuThinking=false; nextTurn(); }, br, bc);
+}
+function setMode(mode){
+  gameMode=mode;
+  document.getElementById('btn-2p').classList.toggle('active',mode==='2p');
+  document.getElementById('btn-cpu').classList.toggle('active',mode==='cpu');
+  resetGame();
+}
+function resetGame(){
+  clearAnimTimers();
+  cpuThinking=false;
+  initBoard();renderBoard();
+  setMessage(gameMode==='cpu'?'黒亀、岩に登って甲羅干し開始！':'黒亀より甲羅干し開始！');
+}
+resetGame();
+document.querySelectorAll('.stone-icon.white').forEach(el => {
+  el.innerHTML = makeTurtleBellySVG("_icon_w");
+  el.style.width = '36px';
+  el.style.height = '36px';
+  el.style.borderRadius = '0';
+  el.style.display = 'block';
+});
+document.querySelectorAll('.stone-icon.black').forEach(el => {
+  el.innerHTML = makeTurtleSVG("_icon_b");
+  el.style.width = '36px';
+  el.style.height = '36px';
+  el.style.borderRadius = '0';
+  el.style.display = 'block';
+});
+</script>
+</body>
+</html>
